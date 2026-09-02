@@ -6,6 +6,11 @@ compatibility_date = "2025-01-01"
 # 確認が済んだら false にして再デプロイすれば、cron専用になり外部から叩かれなくなる。
 workers_dev = true
 
+# ダッシュボード(Workers & Pages → reds-watch → Logs)でログを見るために必要。
+# これが無いと `wrangler tail` でしか確認できない。
+[observability]
+enabled = true
+
 # 1分ごとに実行。GitHub Actions と違い待ち行列に入らず、ほぼ定刻に発火する。
 [triggers]
 crons = ["* * * * *"]
@@ -19,4 +24,4 @@ NITTER_INSTANCES = "https://nitter.perennialte.ch,https://nitter.tiekoetter.com,
 # `npx wrangler kv namespace create STATE` で作成し、出力された id を貼る
 [[kv_namespaces]]
 binding = "STATE"
-id = "ここにKVネームスペースのIDを貼る"
+id = "7ed9b1e1fe1c43c89bdcc1449fa750ba"
