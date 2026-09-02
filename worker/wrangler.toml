@@ -17,7 +17,7 @@ crons = ["* * * * *"]
 
 [vars]
 # 動作確認が終わったら "0" にして再デプロイする
-DRY_RUN = "1"
+DRY_RUN = "0"
 LINK_DOMAIN = "fxtwitter.com"
 NITTER_INSTANCES = "https://nitter.perennialte.ch,https://nitter.tiekoetter.com,https://lightbrd.com,https://nitter.space"
 
