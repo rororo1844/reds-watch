@@ -1,0 +1,22 @@
+name = "reds-watch"
+main = "src/index.mjs"
+compatibility_date = "2025-01-01"
+
+# 動作確認用のHTTPエンドポイント(*.workers.dev)を生やすかどうか。
+# 確認が済んだら false にして再デプロイすれば、cron専用になり外部から叩かれなくなる。
+workers_dev = true
+
+# 1分ごとに実行。GitHub Actions と違い待ち行列に入らず、ほぼ定刻に発火する。
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# 動作確認が終わったら "0" にして再デプロイする
+DRY_RUN = "1"
+LINK_DOMAIN = "fxtwitter.com"
+NITTER_INSTANCES = "https://nitter.perennialte.ch,https://nitter.tiekoetter.com,https://lightbrd.com,https://nitter.space"
+
+# `npx wrangler kv namespace create STATE` で作成し、出力された id を貼る
+[[kv_namespaces]]
+binding = "STATE"
+id = "ここにKVネームスペースのIDを貼る"

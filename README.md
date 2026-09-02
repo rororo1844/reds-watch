@@ -85,3 +85,70 @@ done
 ## 検知条件を変えるとき
 
 `check.mjs` の `PATTERNS` を編集する。
+
+
+---
+
+# 低遅延版：Cloudflare Workers（`worker/`）
+
+GitHub Actions のスケジュール実行は待ち行列に入るため、cron を5分にしても実効遅延が
+7〜25分ほど残る。Cloudflare の Cron Triggers は1分間隔が指定でき、ほぼ定刻に発火するため
+実効遅延が1〜2分になる。判定ロジックは `check.mjs` と同一。
+
+## 無料枠と実使用量（1分間隔＝1日1,440回）
+
+| 項目 | 無料枠 | 実使用 |
+|---|---|---|
+| リクエスト数 | 100,000/日 | 1,440/日 |
+| CPU時間 | 10ms/回 | 実測 0.113ms |
+| Cron Triggers | 5個 | 1個 |
+| KV 読み取り | 100,000/日 | 1,440/日 |
+| KV 書き込み | **1,000/日** | 約20/日 |
+
+KV の書き込みだけ枠が厳しいため、**フィードに変化があったときだけ書く**設計にしてある
+(`changed` フラグ)。毎回書くと 1,440回/日 で枠を超える。
+
+無料プランは上限を超えても課金されず、その日の残り時間の操作がエラーになるだけ。
+課金は Workers Paid（$5/月〜）に自分で明示的にアップグレードした場合のみ発生する。
+
+## デプロイ手順
+
+```bash
+cd worker
+
+# 1. Cloudflare にログイン（ブラウザが開く。アカウントは無料・カード不要）
+npx wrangler login
+
+# 2. 状態保存用の KV を作成し、出力された id を wrangler.toml に貼る
+npx wrangler kv namespace create STATE
+
+# 3. Webhook URL を登録（コードには含めない）
+npx wrangler secret put DISCORD_WEBHOOK_URL
+
+# 4. DRY_RUN="1" のままデプロイして動作確認
+npx wrangler deploy
+npx wrangler tail          # ログを見る。1分ごとに走査ログが出る
+```
+
+`wrangler deploy` が表示する `*.workers.dev` の URL を開くと、
+**Discordに投稿せず**「いま投稿するとしたら何か」を JSON で確認できる。
+
+## GitHub Actions からの切り替え
+
+両方を同時に動かすと二重投稿になるので、必ずこの順番で行う。
+
+1. `.github/workflows/watch.yml` の `schedule:` をコメントアウトして push
+2. `worker/wrangler.toml` の `DRY_RUN` を `"0"` に変更
+3. `npx wrangler deploy`
+
+Worker は KV が空の初回起動時、**記録だけして投稿しない**（過去分が一気に流れるのを防ぐ）。
+そのため切り替え直後に取りこぼしが出ないよう、試合前後を避けて作業する。
+
+## ローカル検証
+
+```bash
+cd worker && node test-local.mjs
+```
+
+KV と Discord をメモリ上のモックに差し替え、初回起動・変化なし・新着・重複の
+4パターンを実フィードに対して確認する。
