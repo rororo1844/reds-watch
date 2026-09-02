@@ -1,0 +1,59 @@
+name: watch-reds
+
+on:
+  schedule:
+    # Publicリポジトリは Actions の実行時間が無制限のため10分間隔。
+    # Privateに変更する場合は無料枠(2,000分/月)を超えるので '*/30 * * * *' に戻すこと。
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Discordに投稿せず判定結果だけ見る'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# 実行の重なりで state.json の push が衝突するのを防ぐ
+concurrency:
+  group: watch-reds
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 監視実行
+        run: node check.mjs
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          NITTER_INSTANCES: ${{ vars.NITTER_INSTANCES }}
+          LINK_DOMAIN: ${{ vars.LINK_DOMAIN }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+
+      - name: 既読状態をコミット
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: update state"
+          for i in 1 2 3; do
+            git push && exit 0
+            git pull --rebase --autostash
+          done
+          exit 1
+
+      - name: 失敗をDiscordに通知
+        if: failure()
+        run: |
+          curl -sS -X POST -H 'Content-Type: application/json' \
+            -d "{\"content\":\"⚠️ reds-watch が失敗しました。インスタンスが停止した可能性があります。\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "${{ secrets.DISCORD_WEBHOOK_URL }}"
