@@ -2,9 +2,10 @@ name: watch-reds
 
 on:
   schedule:
-    # Publicリポジトリは Actions の実行時間が無制限のため10分間隔。
+    # GitHub がスケジュール実行で許容する最短間隔が5分。これ未満は無視される。
+    # Publicリポジトリなので実行時間の消費は問題にならない。
     # Privateに変更する場合は無料枠(2,000分/月)を超えるので '*/30 * * * *' に戻すこと。
-    - cron: '*/10 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
