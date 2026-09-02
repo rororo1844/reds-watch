@@ -6,12 +6,7 @@
 
 const ACCOUNT = 'REDSOFFICIAL';
 const KV_KEY  = 'seen';
-const ALERT_KEY = 'alert';    // 障害通知の状態
 const KEEP    = 120;          // 記憶しておく既読ツイートID数
-
-// 障害が続く間、Discordを鳴らし続けないための間引き間隔。
-// Nitterが全滅すると毎分失敗するため、これが無いと1日1,440回通知が飛ぶ。
-const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 // インスタンスは直列に試すため、最悪ケースは この値 × 登録数 になる。
 // cron周期(60秒)を超えると実行が重なり、両方が古い既読リストを読みうる。
@@ -136,52 +131,13 @@ async function postToDiscord(env, content) {
   throw new Error('Discord投稿失敗: レート制限が解除されませんでした');
 }
 
-// --- 障害通知 ----------------------------------------------------------------
-// 失敗が続いても通知は間引き、復旧したら1回だけ知らせる。
-// 通知自体が失敗しても本来のエラーを握り潰さないよう、送信は try/catch で囲む。
-async function notifyFailure(env, error, dry) {
-  const now = Date.now();
-  const prev = await env.STATE.get(ALERT_KEY, 'json');
-  if (prev && now - prev.notifiedAt < ALERT_COOLDOWN_MS) return;   // 通知済み。KVも書かない
-  if (dry) return;
-
-  try {
-    await postToDiscord(env,
-      `⚠️ **reds-watch が停止しています**\n\`${error.message}\`\n` +
-      'Nitter インスタンスが全滅した可能性があります。' +
-      'wrangler.toml の NITTER_INSTANCES を生きているものに差し替えてください。');
-  } catch (e) {
-    console.log(`障害通知の送信に失敗: ${e.message}`);
-  }
-  await env.STATE.put(ALERT_KEY, JSON.stringify({ notifiedAt: now, since: prev?.since ?? now }));
-}
-
-async function notifyRecovery(env, dry) {
-  const prev = await env.STATE.get(ALERT_KEY, 'json');
-  if (!prev || dry) return;                                        // 平常時は書き込み0回
-
-  const minutes = Math.round((Date.now() - prev.since) / 60_000);
-  try {
-    await postToDiscord(env, `✅ reds-watch が復旧しました（約${minutes}分間停止していました）`);
-  } catch (e) {
-    console.log(`復旧通知の送信に失敗: ${e.message}`);
-  }
-  await env.STATE.delete(ALERT_KEY);
-}
-
 export default {
   // 1分ごとの巡回本体
   async scheduled(event, env, ctx) {
     const dry = env.DRY_RUN === '1';
 
-    let r;
-    try {
-      r = await evaluate(env);
-    } catch (e) {
-      await notifyFailure(env, e, dry);
-      throw e;                        // Cloudflare 側のエラー計上とログは残す
-    }
-    await notifyRecovery(env, dry);
+    // 取得失敗はDiscordへ通知せず、Cloudflare側のエラー計上とログだけ残す。
+    const r = await evaluate(env);
 
     if (!r.bootstrap && !dry) {
       for (const i of r.hits) await postToDiscord(env, tweetUrl(env, i.id));
