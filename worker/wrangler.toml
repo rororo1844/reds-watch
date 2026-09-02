@@ -3,8 +3,9 @@ main = "src/index.mjs"
 compatibility_date = "2025-01-01"
 
 # 動作確認用のHTTPエンドポイント(*.workers.dev)を生やすかどうか。
-# 確認が済んだら false にして再デプロイすれば、cron専用になり外部から叩かれなくなる。
-workers_dev = true
+# false = cron専用。公開URLが無くなり、枠を消費させるいたずらができなくなる。
+# 判定結果をブラウザで見たいときは true に戻して deploy し、確認後また false に戻す。
+workers_dev = false
 
 # ダッシュボード(Workers & Pages → reds-watch → Logs)でログを見るために必要。
 # これが無いと `wrangler tail` でしか確認できない。

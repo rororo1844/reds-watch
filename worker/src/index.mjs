@@ -13,6 +13,11 @@ const KEEP    = 120;          // 記憶しておく既読ツイートID数
 // Nitterが全滅すると毎分失敗するため、これが無いと1日1,440回通知が飛ぶ。
 const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
+// インスタンスは直列に試すため、最悪ケースは この値 × 登録数 になる。
+// cron周期(60秒)を超えると実行が重なり、両方が古い既読リストを読みうる。
+// 4件登録で 8秒 × 4 = 32秒。通常の応答は 0.3秒 程度なので余裕は十分にある。
+const FETCH_TIMEOUT_MS = 8_000;
+
 // --- 検知条件（実投稿の書式を 2026/08〜09 の実データで確認済み） ----------------
 //   ♦️MATCH DAY♦️
 //   ♦️横浜FM戦 スターティングメンバー♦️
@@ -71,7 +76,7 @@ async function fetchFeed(env) {
     try {
       const res = await fetch(url, {
         headers: { 'User-Agent': UA, Accept: 'application/rss+xml, application/xml, text/xml' },
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const items = parse(await res.text());
